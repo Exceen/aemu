@@ -137,6 +137,18 @@ game, ef0:/seplugins/atpro.prx, on
 - `ms0:/seplugins/nickname.txt` / `ef0:/seplugins/nickname.txt` / `ux0:/pspemu/seplugins/nickname.txt` can be added to override your system nickname, mostly useful for PSVita ARK Standalone if games don't work with your nickname generated from PSVita PSN
 - `hotspot.txt` lines can also contain the name of an infrastructure mode profile instead of its SSID. This is useful when several profiles use the same SSID, e.g. one with automatic and one with manual IP settings: a unique SSID match is used first, otherwise the line is looked up as a profile name
 - `ms0:/seplugins/atpro_disable_home.txt` / `ef0:/seplugins/atpro_disable_home.txt` / `ux0:/pspemu/seplugins/atpro_disable_home.txt` can be added with the content `1` to make the plugin leave the HOME button alone: HOME then neither toggles the chat HUD nor gets the system home menu blocked, so custom home menu plugins keep working. Use L+R+SELECT to open the HUD instead
+- All of the above can also be set in one file, `ms0:/seplugins/atpro.ini` / `ef0:/seplugins/atpro.ini` / `ux0:/pspemu/seplugins/atpro.ini` (PPSSPP: `ms0:/PSP/PLUGINS/atpro/atpro.ini`). Settings found there take precedence, anything missing falls back to the separate files above. One `key = value` per line, lines starting with `#` or `;` are comments, `hotspot` can be repeated to list several profiles in order:
+  ```
+  server = socom.cc
+  port_offset = 10000
+  hotspot = MyProfileName
+  # hotspot = MyOtherProfile
+  nickname = Hunter
+  hud_on_home = 1
+  allow_sleep = 0
+  ```
+  `hud_on_home = 0` is the same as `atpro_disable_home.txt`: HOME is left to the system or a custom home menu plugin, and the HUD opens with L+R+SELECT.
+  `allow_sleep = 1` keeps sleep mode available while the WLAN switch is on. By default the plugin blocks sleep for the whole game session, because sleeping drops the network connection; sleeping while connected will most likely end the session
 - On PSVita, https://github.com/Kethen/pspemu_inet_multithread can be used on top to make some games run faster during adhoc multiplayer
 
 - <details>

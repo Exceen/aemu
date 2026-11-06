@@ -38,6 +38,7 @@
 #include "logs.h"
 #include "systemctrl.h"
 #include "game_patches.h"
+#include "atpro_config.h"
 
 #define FAKE_FAT 0
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
@@ -1373,8 +1374,11 @@ void get_game_code(char *buf, int len){
 	strncpy(buf, getGameCode(), len - 1);
 }
 
-// HOME Button Usage (0 = never touch HOME, set via seplugins/atpro_disable_home.txt)
+// HOME Button Usage (0 = never touch HOME, set via hud_on_home = 0 in atpro.ini or seplugins/atpro_disable_home.txt)
 static int use_home_button = 1;
+
+// Sleep Mode Blocking (0 = leave sleep mode alone, set via allow_sleep in atpro.ini)
+static int block_sleep = 1;
 
 // Callback Deny Function
 int cbdeny(int cbid)
@@ -2833,7 +2837,7 @@ int input_thread(SceSize args, void * argp)
 		// Register Button
 		curr_buttons = ctrl.Buttons;
 		
-		// Home Button pressed (and not pressing exit button), unless disabled via atpro_disable_home.txt
+		// Home Button pressed (and not pressing exit button), unless disabled via hud_on_home = 0 or atpro_disable_home.txt
 		if(use_home_button && !is_ark_standalone() && !is_exit_button_pressed && (prev_buttons & PSP_CTRL_HOME) == 0 && (curr_buttons & PSP_CTRL_HOME) != 0)
 		{
 			// Enable or Disable GUI Overlay
@@ -3114,20 +3118,42 @@ s32 sceKernelPowerUnlockForUserPatched(s32 lockType)
 }
 
 static void load_home_button_setting(){
-	int fd = sceIoOpen("ms0:/seplugins/atpro_disable_home.txt", PSP_O_RDONLY, 0777);
-	if (fd < 0){
-		fd = sceIoOpen("ef0:/seplugins/atpro_disable_home.txt", PSP_O_RDONLY, 0777);
-	}
-	if (fd >= 0){
-		char buf[8] = {0};
-		sceIoRead(fd, buf, sizeof(buf) - 1);
-		sceIoClose(fd);
-		use_home_button = (buf[0] == '1') ? 0 : 1;
+	int hud_on_home = atpro_config_get_bool("hud_on_home");
+	if (hud_on_home >= 0){
+		use_home_button = hud_on_home;
+	}else{
+		int fd = sceIoOpen("ms0:/seplugins/atpro_disable_home.txt", PSP_O_RDONLY, 0777);
+		if (fd < 0){
+			fd = sceIoOpen("ef0:/seplugins/atpro_disable_home.txt", PSP_O_RDONLY, 0777);
+		}
+		if (fd >= 0){
+			char buf[8] = {0};
+			sceIoRead(fd, buf, sizeof(buf) - 1);
+			sceIoClose(fd);
+			use_home_button = (buf[0] == '1') ? 0 : 1;
+		}
 	}
 	printk("%s: home button %s\n", __func__, use_home_button ? "used for hud and home menu blocking" : "left alone");
 }
 
+static void load_sleep_setting(){
+	int allow_sleep = atpro_config_get_bool("allow_sleep");
+	if (allow_sleep >= 0){
+		block_sleep = !allow_sleep;
+	}
+	printk("%s: sleep mode %s\n", __func__, block_sleep ? "blocked while wlan is on" : "left alone");
+}
+
 static void load_nickname_override(){
+	if (atpro_config_get("nickname", 0, nickname, sizeof(nickname)) && nickname[0] != '\0'){
+		printk("%s: loaded nickname (%s) from atpro.ini\n", __func__, nickname);
+		for(int i = 0;i < 4;i++){
+			nickname[sizeof(nickname) - 1 - i] = 0;
+		}
+		return;
+	}
+	memset(nickname, 0, sizeof(nickname));
+
 	int fd = sceIoOpen("ms0:/seplugins/nickname.txt", PSP_O_RDONLY, 0777);
 	if (fd < 0){
 		fd = sceIoOpen("ef0:/seplugins/nickname.txt", PSP_O_RDONLY, 0777);
@@ -3161,6 +3187,7 @@ int module_start(SceSize args, void * argp)
 
 	load_nickname_override();
 	load_home_button_setting();
+	load_sleep_setting();
 
 	// Enable Online Mode
 	onlinemode = sceWlanGetSwitchState();
@@ -3254,9 +3281,11 @@ int module_start(SceSize args, void * argp)
 					if(onlinemode)
 					{
 						if(!is_vita()){
-							// Disable Sleep Mode
-							scePowerLock(0);
-							printk("Disabled Power Button!\n");
+							// Disable Sleep Mode (unless allow_sleep is set)
+							if (block_sleep){
+								scePowerLock(0);
+								printk("Disabled Power Button!\n");
+							}
 
 							if (partition_to_use() == 5){
 								// Keep volatile lock locked, and return fake results to calls
