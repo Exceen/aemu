@@ -1377,6 +1377,12 @@ void get_game_code(char *buf, int len){
 // HOME Button Usage (0 = never touch HOME, set via hud_on_home = 0 in atpro.ini or seplugins/atpro_disable_home.txt)
 static int use_home_button = 1;
 
+// HOME toggles the HUD (otherwise only L+R+SELECT does), used for the HUD help text
+int hud_toggled_by_home(void)
+{
+	return use_home_button && !is_ark_standalone();
+}
+
 // Sleep Mode Blocking (0 = leave sleep mode alone, set via allow_sleep in atpro.ini)
 static int block_sleep = 1;
 
@@ -3144,6 +3150,14 @@ static void load_sleep_setting(){
 	printk("%s: sleep mode %s\n", __func__, block_sleep ? "blocked while wlan is on" : "left alone");
 }
 
+// HUD text background (hud.c), set via hud_text_background in atpro.ini
+extern int hud_text_background;
+
+static void load_hud_settings(){
+	hud_text_background = atpro_config_get_bool("hud_text_background") == 1;
+	printk("%s: hud text background %s\n", __func__, hud_text_background ? "on" : "off");
+}
+
 static void load_nickname_override(){
 	if (atpro_config_get("nickname", 0, nickname, sizeof(nickname)) && nickname[0] != '\0'){
 		printk("%s: loaded nickname (%s) from atpro.ini\n", __func__, nickname);
@@ -3188,6 +3202,7 @@ int module_start(SceSize args, void * argp)
 	load_nickname_override();
 	load_home_button_setting();
 	load_sleep_setting();
+	load_hud_settings();
 
 	// Enable Online Mode
 	onlinemode = sceWlanGetSwitchState();
